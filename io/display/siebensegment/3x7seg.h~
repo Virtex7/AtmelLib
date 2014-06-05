@@ -1,0 +1,104 @@
+/*
+ *    Filename: lib/io/display/siebensegment.h
+ *     Version: 0.0.1
+ * Description: Beispieldatei
+ *     License: GPLv2 or later
+ *     Depends: (none)
+ *
+ *      Author: Copyright (C) Max Gaukler <development@maxgaukler.de>, Philipp Hörauf
+ *        Date: 2007-12-12
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+#ifndef _HAVE_LIB_IO_DISPLAY_SIEBENSEGMENT_H
+#define _HAVE_LIB_IO_DISPLAY_SIEBENSEGMENT_H
+
+// Warning ausgeben und Fkt ausblenden, wenn für siebensegment_3stellig die Defines nicht gesetzt sind
+#ifndef SIEBENSEGMENT_H_PORT_1
+#define SIEBENSEGMENT_H_WARNING
+#endif
+
+#ifndef SIEBENSEGMENT_H_PORT_2
+#define SIEBENSEGMENT_H_WARNING
+#endif
+
+#ifndef SIEBENSEGMENT_H_PORT_2
+#define SIEBENSEGMENT_H_WARNING
+#endif
+
+
+#ifdef SIEBENSEGMENT_H_WARNING
+
+#ifndef SIEBENSEGMENT_3STELLIG_OFF
+#warning aufgrund fehlender Defines wurde die Fkt siebensegment_3stellig ausgeblendet.
+#warning um die Funktion siebensegment_3stellig zu nutzen, muss SIEBENSEGMENT_H_PORT_1 - SIEBENSEGMENT_H_PORT_3 definiert sein.
+#warning SIEBENSEGMENT_H_PORT_1 ist der Port der Siebenseg.Anzeige für die Hunderterstelle
+#warning SIEBENSEGMENT_H_PORT_3 ist für die Einerstelle
+#warning um dieses WARNING zu unterdrücken: #define SIEBENSEGMENT_3STELLIG_OFF
+#endif
+
+#else
+#include "../../math/lowmem.c"
+
+// Siebensegment_port:
+// Ansteuerung einer Siebensegment-Ziffer-Anzeige
+// Die 7 niederwertigsten Bits (PX0...PX6) des Ports werden erst genullt (port &= 0x80)
+// und dann je nach Zahl gesetzt (port |= 0x..)
+
+#define siebensegment_port(zahl,port) \
+do { \
+port &= 0x80; \
+if (zahl == 0) { \
+	port |= 0x40; \
+} else if (zahl == 1) { \
+	port |= 0x79; \
+} else if (zahl == 2) { \
+	port |= 0x24; \
+} else if (zahl == 3) { \
+	port |= 0x30; \
+} else if (zahl == 4) { \
+	port |= 0x19; \
+} else if (zahl == 5) { \
+	port = 0x12; \
+} else if (zahl == 6) { \
+	port |= 0x02; \
+} else if (zahl == 7) { \
+	port |= 0x78; \
+} else if (zahl == 8) { \
+	port |= 0x00; \
+} else if (zahl == 9) { \
+	port |= 0x10; \
+}\
+} while (false)
+
+void siebensegment_3stellig(uint16_t display)
+{
+	if (display <= 999) {
+		// Zahl auf Siebensegmentanzeige schreiben
+		siebensegment_port(lowmem_ziffer(3, 10, display),
+				   SIEBENSEGMENT_H_PORT_1);
+		siebensegment_port(lowmem_ziffer(2, 10, display),
+				   SIEBENSEGMENT_H_PORT_2);
+		siebensegment_port(lowmem_ziffer(1, 10, display),
+				   SIEBENSEGMENT_H_PORT_3);
+	} else {
+		// Überlauf
+		siebensegment_3stellig(999);
+	}
+}
+#endif
+
+#endif

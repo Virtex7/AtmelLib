@@ -1,0 +1,67 @@
+
+/*
+ *    Filename: lib/math/32bit_zehnersystem.c
+ *     Version: 0.0.2
+ * Description: 32bit Rechnungen im Zehnersystem
+ *     License: GPLv2 or later
+ *     Depends: (none)
+ *   Needed by: string/int_to_string.c
+ *
+ *      Author: Copyright (C) Max Gaukler <development@maxgaukler.de>
+ *        Date: 2010-03-12
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ *
+ */
+#ifndef _HAVE_LIB_MATH_32BIT_ZEHNERSYSTEM_C
+#define _HAVE_LIB_MATH_32BIT_ZEHNERSYSTEM_C
+
+uint32_t uint32_pow10(int8_t x) {
+	uint32_t y=1;
+	int8_t i;
+	for (i=0;i<x;i++) {
+		y*=10;
+	}
+	return y;
+}
+
+uint8_t uint32_ziffer(uint32_t x, int8_t n) {
+	if (n<0) {
+		return 0;
+	} else {
+		if (n>0) {
+			return ((x/uint32_pow10((unsigned)n&0x7F)) % 10);
+		} else {
+			return (x%10);
+		}
+	}
+}
+
+uint8_t uint32_pot10(uint32_t x) {
+	// Zehnerpotenz eines Wertes, zB 12345==1,2345*10^4  =>  pot10(12345)==4
+	uint8_t i, zehnerpotenz=0;
+	uint32_t vergleichswert=1;
+	for (i=0;i<9;i++) {
+		if (x>=vergleichswert) {
+			zehnerpotenz=i;
+		} else {
+			return zehnerpotenz;
+		}
+		vergleichswert*=10;
+	}
+	return 1;
+}
+
+#endif
