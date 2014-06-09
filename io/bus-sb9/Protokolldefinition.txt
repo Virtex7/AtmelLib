@@ -1,0 +1,233 @@
+Protokolldefinitionen SB9-Bus: Serial 9-bit Bus
+
+Anwendungsgebiet: Hausautomatisierung, Messen, Steuern, Regeln, eher langsame Mikrocontrollerkommunikation
+
+Probleme ToDo:
+bei langen Leitungen und RS485 (oder andere Verfahren ohne dominanten Pegel) gibt es Probleme, da bei Kollisionen an entfernten Enden des Kabels jeder Chip sein Signal sieht und deshalb die Kollision nicht bemerkt
+
+Seriell: 19200, 9E1: 19200 baud, 9 bit data, even parity, 1 stopbit
+Aufbau eines Frames: Bit 1-8: Daten, Bit 9: Flag für Paketanfang (1=Start eines neuen Pakets).
+Topologie: Linie
+
+Übersicht:
+- Kommunikationsgeschwinigkeit ist 19200 Baud (Kompromiss zwischen Geschwindigkeit und Störsicherheit)
+- Leitungskapazität: absolutes Maximum 100nF, experimentelle Erprobung steht noch aus
+- Reflexionen/Terminierung bei unsymmetrischem Bus sind noch nicht erprobt, zur Zeit wird dieses Thema ignoriert
+  mögliche Lösung: R-C Terminierung R 50-120 Ohm (Klingeldraht 120), C 1-10nF an beiden Enden des Busses
+- Wahlweise als 2-draht (Bus,GND) symmetrisch (mit zusätzlichem Transceiver-Baustein).
+1-Wire ist ein ganz anderes Bussystem...
+- Bussystem wird durch einen 470R Widerstand auf 5V (idle state) gelegt und vom TX des Senders auf Masse gezogen.
+- Idle State: unsymmetrisch 5V, bei symmetrischer Verbindung: Positive Seite: 5V / Negative Seite: GND
+keine Stichleitungen, das bringt nur Aufwand und Chaos
+- Jeder TX-Pin eines ATMELs wird mit einer 1N4148 Diode zu einem Open Collector gemacht, d.h. er kann nur noch senken.
+- Für symmetrische Verbindungen können RS485 oder RS422 Transceiver verwendet werden, dann muss allerdings der TX mit einer Diode zum oC in gemacht werden und nicht der TX des Atmels. RX und TX müssen immer angeschaltet bleiben, RXen und TXen können also fest programmiert, bzw. (bei Treibern) verdrahtet werden.
+- ausbaufähiges System: von maximal 256 Adressen werden 8 Stück reserviert, sodass dieser Bus aufwärtskompatibel zu einer 24bit-Erweiterung ist
+- integrierte Kollisionserkennung und Störsicherheit:
+  a) Vergleich von gesendetem Byte und empfangenem Byte (da RX auch aktiv bleibt) zur Kollisionserkennung
+  b) Pegel 0 setzt sich durch, keine unklaren Verhältnisse bei Kollision 1<-->0
+  c) Prüfsummenübertragung
+- Antwort mit Statusbyte und optional Antwort-Datenbytes
+
+
+==== ASYMMETRISCHES INTERFACE ====
+Verschaltung:
+Jeder Bus-Client hat einen Elko >=10µF zwischen 5V und GND, sowie je eine Diode von Data nach 5V und von GND nach Data.
+Steckerbelegung:
+An/in jedem Gerät sind zwei 1x4pin Stiftleisten mit 2,54mm Rastermaß im Abstand von mindestens 1cm angebracht. Zu allen Seiten müssen je 5mm freier Platz für die Stecker sein. Möglich sind z.B. zwei gewinkelte Stiftleisten, die über den Platinenrand hinausragen: (Seitenansicht)
+        
+        x x x x        x x x x
+        
+oder zwei gerade Stiftleisten:
+        
+        x x x x
+        
+        
+        x x x x
+        
+        
+Pinbelegung: 1: 5V, 2: GND, 3: DATA, 4: GND
+
+
+Frame:
+ein Frame besteht aus einem Statusbit und einem Datenbyte also 9 Bit lang
+Statusbit == 1: Adresse im gerade gesendeten Frame
+Statusbit == 0: Datenframe; wird nur von Controllern mit MPC==0 erkannt und enthält Nutzdaten die abh. vom Controller interpretiert werden.
+
+Adressen:
+- jede Adresse ist aus einem Frame aufgebaut.
+- die Subnetz-Adresse 1 1111 1001 sieht für 8 Bit Geräte aus, wie ein großes Gerät ---> Abwärtskompatibilität ist gegeben
+
+Reservierte Adressen und ihre Funktionen sind hier aufgelistet:
+
+0x00	1 0000 0000  -  reserviert
+
+(0x01...0xEF - normal verwendbar)
+
+0xF0	1 1111 0000	24 Bit-Adresse folgt: Signal für 24Bit Geräte
+0xF1 bis 0xFE	reserviert
+0xFF	1 1111 1111	Auslieferungszustand, gelöschtes EEPROM
+
+
+Befehle:
+können Controllerspezifisch verwendet werden, nur 16 Stück sind voreingestellt bzw. reserviert, manche davon empfohlen:
+zwingend implementiert muss nur "Adresse ändern" sein, "Shutdown" "Identifizieren" und "Reset" sollten nur bei Speichermangel weggelassen werden.
+
+wenn vorhanden, müssen diese Nummern genutzt werden:
+
+Für Text-LCDs:
+0xE0	0 1110 0000  -  Hintergrundlicht an/aus: Soll-Status wird im Datenpaket definiert.
+0xE1	0 1110 0001  -  Sende LCD-Kommando/s (Rohdaten werden im Datenpaket mitgesendet, bis zu 100 Kommandos sind möglich, bei der Ausführung vergeht etwas Zeit...)
+0xE2	0 1110 0010  -  Sende LCD-Daten (auch Rohdaten, werden direkt verarbeitet)
+0xE3	0 1110 0011  -  Sende String an die LCD-Anzeige-Funktion (max lib wird als Standart vorausgesetzt)
+
+0xE4	0 1110 0100  -  Sende String an die LCD-Putchar-Funktion
+
+0xE5-EF reserviert
+
+Für I/O-Operationen:
+		Gilt für alle IO-Operationen:
+		Jeder PORT, z.B. PORTA, PORTB oder Sensor (Lichtsensor) in einem ATMEL hat eine Nummer wie 1, 2, 3...
+		die Nummer wird im ersten Datenpaket übertragen, bei OUT kommen die Steuerdaten in den folgenden Datenbytes.
+0xF0	BUS_CMD_OUTPUT_ON	IO: Ausgang anschalten: Bei mehr als einem Ausgang werden die Daten als Bitfeld übergeben. (z.B. PORTB |= data)
+0xF1	BUS_CMD_OUTPUT_OFF	IO: Ausgang ausschalten: -- wie "Anschalten" -- (z.B. PORTB &= ~data)
+0xF2	BUS_CMD_OUTPUT_SET	IO: Ausgang setzen: z.B. PORTB = data
+0xF3	BUS_CMD_OUTPUT_TOGGLE	IO: Ausgang umschalten PORTB ^= data
+0xF4	BUS_CMD_OUTPUT_GET	IO: Ausgang auslesen
+0xF5	BUS_CMD_INPUT_GET	IO: Eingang auslesen, für IOs oder Sensor. Messwerte kommen in einem sensorspezifischen Format zurück.
+0xF6	-  reserviert
+0xF7	BUS_CMD_SHUTDOWN	Shutdown: alle Peripheriegeräte werden ausgeschaltet, z.B. für Netzteile deaktiviert dies den Ausgang
+
+empfohlen:
+
+0xF8	0 1111 1000  -  reserviert
+0xF9	0 1111 1001  -  reserviert
+0xFA	0 1111 1010  -  Test: Startet ein vorher definiertes Testprogramm, z.B: ein Blinken mit Scheinwerfern...., Datenpakete möglich
+0xFB	0 1111 1011  -  Fehlerspeicher auslesen: Controller speichert ein paar aufgetretene Fehler mit und sendet sie zurück (Ben. def. Format)
+
+0xFC	0 1111 1100  -  Identifiziere dich: der angesprochene Controller gibt ein paar Informationen zurück (ASCII-Text)
+0xFD	0 1111 1101  -  Loopback-Test: empfangene Daten (20 Byte) wieder zurückgeben
+0xFE	0 1111 1110  -  Reset: Neustart nach der erfolgreich abgeschlossenen Kommunikation, nach spätestens 1,5s soll der Reset abgeschlossen sein
+
+
+DIESER Befehl ist der einzig wirklich ZWINGENDE Befehl, der in ALLEN Controllern zu implementieren ist:
+0xFF	0 1111 1111  -  Adresse ändern
+	die neue Adresse wird insgesamt 6 mal in den folgenden Datenbytes gesendet:
+	3 mal normal und 3 mal invertiert. Adresse wird im EEPROM gespeichert.
+	Nach Abschluss dieses Befehls ist der Slave nur noch über die neue Adresse zu erreichen.
+
+
+
+Benutzerdefnierte Befehle (Vorschlag)
+ACHTUNG: Die hier definierten Befehle sind NICHT ZWANGSWEISE zu verwenden, sie stellen nur einen (sinnvollen) Vorschlag dar.
+....
+Für Schalter: bitte die vordefinierten Befehlssätze verwenden.
+
+
+=====================
+==== STATUSBYTES ====
+=====================
+
+0x00	BUS_OK
+
+0x01...0xEF benutzerdefinierter Fehler
+
+0xF0-0xFB reserviert
+0xFC	BUS_ERR_INTERNAL interner Fehler im Programmablauf
+0xFD	BUS_ERR_PARAM    Falsche Parameter (z.B. außerhalb des erlaubten Wertebereichs)
+0xFE	BUS_ERR_LEN      Falsche Datenlänge
+0xFF	BUS_ERR_CMD      Befehl unbekannt oder nicht unterstützt
+
+Prüfsumme:
+Startwert y=0xFF;
+Für jedes Byte: y^=byte; y um 1 bit nach rechts rotieren: y=(y>>1)|((y&1)<<7)
+
+===========================
+==== FEHLERBEHANDLUNG =====
+===========================
+Bei jedem Fehler (Parity-Bit oder Prüfsumme falsch, Timeout oder Kollision) wird die Übertragung abgebrochen (Sender bricht ab bzw. Empfänger antwortet nicht mehr). Für die Gegenstelle tritt dann ein Timeout ein, sodass diese auch die Übertragung abbricht. Ein "NAK" als solches gibt es nicht. Nach einem Übertragungsfehler werden noch zwei weitere Versuche unternommen, danach wird das Paket als unzustellbar verworfen.
+
+Timeout/Fehlererkennung:
+5ms keine Daten empfangen: Übertragung still abbrechen
+Parity falsch: Frame verwerfen
+9. bit unerwartet mitten während der Übertragung gesetzt: Empfang des vorherigen Paketes abbrechen, Verarbeitung neu beginnen.
+
+
+==================================
+==== ABLAUF DER KOMMUNIKATION ====
+==================================
+"Master" ist der Absender
+"Slave" ist der Empfänger
+Nicht jedes Gerät ist masterfähig. Nur masterfähige Geräte können Aktionen auslösen.
+
+1s. Slave: Ruhezustand
+1s.1 MCPM anschalten: Nur Pakete mit 9. bit gesetzt werden vom UART empfangen. Slave wartet bis ein solches eintrifft.
+
+1m. Master: Kollisionsvermeidung
+1m.1. "zufällige" Zeit (0-2,55ms) berechnen:
+	 Zufallsgenerator: Startwert nach Reset: z=Adresse, Bei jedem Durchlauf: z=Prüfsumme(0, Startwert=z)
+	 Zeit x = z*10µs
+1m.2. warten bis Bus 15ms+x  lang auf 1 (idle) (bzw. nur 7ms+x für Wiederholungen von Paketen, die "4. Bestätigung" erreicht haben, d.h. möglicherweise schon verarbeitet, aber noch nicht beantwortet worden sind)
+
+2. Handshake
+2.1. Master:	Slave-Adresse (9. bit = Start der Übertragung: nur hier gesetzt, an allen anderen Stellen nicht gesetzt)
+2.1s. angesprochener Slave schaltet MPCM aus, um Daten empfangen zu können
+2.2. Master:	Master-Adresse
+2.3. Master:	Prüfsumme (Startwert 0xFF) aus Slave-Adresse und Master-Adresse
+2.4. Slave:	Prüfsumme (Bits negiert)
+
+3. Übertragung der Anfrage
+
+3.1. Master: Sequenznummer [seq immer um eins erhöhen, wenn keine Wiederholung]
+3.2. Master: Befehl
+3.3. Master: Länge(0<=n<=255)
+3.4. n Bytes Daten (exakt so viele Bytes wie in Länge angegeben)
+
+3.5. ab hier: bei Übertragungsfehler, Kollision etc.: nur 7ms anstatt Wartezeit nach Neustart, damit die Neuübertragung vor anderen Paketen beim Slave ankommt
+
+4. Bestätigung der Anfrage
+4.1. Master:	Prüfsumme (Startwert 0xFF, aus Slave-Adresse, Master-Adresse, Sequenznummer, Befehl, Länge und Daten)
+4.2. Slave: 	Prüfsumme (Bits negiert)
+
+4.3.a) Für Befehle, die bei einer mehrfachen Ausführung eine falsche Antwort/Reaktion liefern: (z.B. "Lampe umschalten")
+	Wenn Sequenznummer, Absender (und Empfänger) nicht exakt gleich wie beim vorherigen Paket sind oder mindestens 5 Pakete an andere Empfänger in Folge empfangen wurden:
+		eine frühere, zwischengespeicherte Antwort kann nun aus dem Speicher gelöscht werden
+		Slave führt nun den Befehl aus (4ms Rechenzeit).
+		 (Die Bedingung mit "oder mindestens 5 an andere in Folge" ist nötig, da sonst ein Überlauf der Sequenznummer zu Problemen führen könnte: Sonst möglich: A sendet 1 Paket an B, 254 Pakete an X, 1 an B. Letztes Paket wird als Wiederholung abgestempelt, da die Sequenznummer um 256 angestiegen ist und dies als Overflow wegfällt.)
+	Sonst:
+		Slave liefert nur zwischengespeicherte Antwort. Wenn diese nicht mehr vorhanden ist, Übertragung stillschweigend abbrechen.
+
+4.3.b) Für Befehle, die ohne Veränderung mehrmals ausgeführt werden dürfen (z.B. "Lampe anschalten"): Slave führt nun den Befehl aus (4ms Rechenzeit)
+
+5. Übertragung der Antwort
+5.1. Slave: Status:
+	0 = Befehl erfolgreich ausgeführt
+	1-199 = benutzerdefinierter Fehler
+	200-253 = reserviert
+	254 = falsche Parameter
+	255 = Befehl nicht unterstützt
+5.2. Slave: Länge der Antwort (bzw. 0 für keine Antwortdaten)
+5.3. Slave: wenn Länge >0: Antwortdaten (exakt so viele Bytes wie in Länge angegeben)
+5.4. Slave: Prüfsumme von Status, Länge und Daten (auch bei Länge=0)
+Ende der Übertragung
+
+
+
+
+
+
+
+
+
+===ARCHIV, altes Zeug, nicht mehr gültig:========
+
+Kontrollregister für die BUS-RX-Behandlung
+
+BUSCON == BUS-Kontrollregister
+  7		6		5		4		3		2		1		0
+  BF		RXA		RXB		RXD		CHR		RES		RES		RES
+  BUS Aktiv	RX-Adr		RX-befehl	RX-daten	chsum-ready
+  
+BUSERR == BUS-Fehlerregister
+  7		6		5		4		3		2		1		0
+  RXT		CHERR		RES		FE		DOR		PE		RES		RES
+  RX-Timeout	Checksum-Error			FrameError	DataOverRun	Parity-Error
