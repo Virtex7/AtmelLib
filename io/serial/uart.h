@@ -27,6 +27,8 @@
 #ifndef _HAVE_LIB_IO_SERIAL_UART_H
 #define _HAVE_LIB_IO_SERIAL_UART_H
 
+#include "../io.h"
+
 // #define BAUD 57600
 // #include <util/setbaud.h>
 
@@ -42,11 +44,11 @@
 #define uart_tx_newline uartTxNewline
 
 
-#if defined (__AVR_ATtiny2313__)
+#if defined(__AVR_ATtiny2313__)
 #define URSEL UMSEL
 #define PE UPE
 
-#elif defined (__AVR_ATmega48__) || defined (__AVR_ATmega88__) || defined (__AVR_ATmega168__) || defined (__AVR_ATmega328__)
+#elif defined(__AVR_ATmega48__) || defined(__AVR_ATmega88__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328__)
 #define UCSRA UCSR0A
 #define UCSRB UCSR0B
 #define UCSRC UCSR0C
@@ -62,21 +64,7 @@
 
 #elif defined(__AVR_ATmega644P__)
 
-// #if defined UART_NUMBER == 0
-// #define UCSRA UCSR0A
-// #define UCSRB UCSR0B
-// #define UCSRC UCSR0C
-// #define RXEN RXEN0
-// #define TXEN TXEN0
-// #define UCSZ0 UCSZ00
-// #define RXC RXC0
-// #define TXC TXC0
-// #define UDRE UDRE0
-// #define UDR UDR0
-// #define UBRRH UBRR0H
-// #define UBRRL UBRR0L
-
-#elif defined UART_NUMBER == 1
+#if defined UART_NUMBER_ONE
 #define UCSRA UCSR1A
 #define UCSRB UCSR1B
 #define UCSRC UCSR1C
@@ -92,11 +80,21 @@
 #define UBRRL UBRR1L
 
 #else
-#error Uart-Einheit nicht (korrekt) definiert! Einheitennummer 0 oder 1 angeben!
+#define UCSRA UCSR0A
+#define UCSRB UCSR0B
+#define UCSRC UCSR0C
+#define RXEN RXEN0
+#define TXEN TXEN0
+#define UCSZ0 UCSZ00
+#define UCSZ1 UCSZ01
+#define RXC RXC0
+#define TXC TXC0
+#define UDRE UDRE0
+#define UDR UDR0
+#define UBRRH UBRR0H
+#define UBRRL UBRR0L
 #endif
 #endif
-
-#include "../io.h"
 
 // Formel zur Baudrate->UBRR-Umrechung: UBRR=((F_CPU)/(baud*16L)*2 + 1) /2
 
@@ -108,11 +106,11 @@ void uartInit(void) {
 	UCSRB = (1<<RXEN) | (1<<TXEN);
 	
 	// 8 Bit Daten; 1 Stopbit; Asynchronous Operation, no Parity
-	#if defined (__AVR_ATmega644P__)
+	#if defined(__AVR_ATmega644P__)
+	UCSRC = (1<<UCSZ1) | (1<<UCSZ0); 
+	#else
 	UCSRC = (1<<URSEL) | (1<<UCSZ1) | (1<<UCSZ0); 
 	#endif
-	
-	UCSRC = (1<<URSEL) | (1<<UCSZ1) | (1<<UCSZ0); 
 	
 	// 2 Stoppbits wenn N_STOPPBITS = 2 definiert ist.
 	#if N_STOPPBITS == 2
