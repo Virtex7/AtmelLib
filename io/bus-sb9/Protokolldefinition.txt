@@ -70,7 +70,7 @@ Reservierte Adressen und ihre Funktionen sind hier aufgelistet:
 
 Befehle:
 können Controllerspezifisch verwendet werden, nur 16 Stück sind voreingestellt bzw. reserviert, manche davon empfohlen:
-zwingend implementiert muss nur "Adresse ändern" sein, "Shutdown" "Identifizieren" und "Reset" sollten nur bei Speichermangel weggelassen werden.
+zwingend implementiert muss nur "Adresse ändern" sein, "Ausgangs-Shutdown" "Identifizieren" und "Reset" sollten nur bei Speichermangel weggelassen werden.
 
 wenn vorhanden, müssen diese Nummern genutzt werden:
 
@@ -97,6 +97,7 @@ Für I/O-Operationen:
 0xF6	-  reserviert
 0xF7	BUS_CMD_SHUTDOWN	Shutdown: alle Peripheriegeräte werden ausgeschaltet, z.B. für Netzteile deaktiviert dies den Ausgang
 
+
 empfohlen:
 
 0xF8	0 1111 1000  -  reserviert
@@ -108,8 +109,7 @@ empfohlen:
 0xFD	0 1111 1101  -  Loopback-Test: empfangene Daten (20 Byte) wieder zurückgeben
 0xFE	0 1111 1110  -  Reset: Neustart nach der erfolgreich abgeschlossenen Kommunikation, nach spätestens 1,5s soll der Reset abgeschlossen sein
 
-
-DIESER Befehl ist der einzig wirklich ZWINGENDE Befehl, der in ALLEN Controllern zu implementieren ist:
+DIESER Befehl ist der einzig wirklich ZWINGENDE Befehl, der in ALLEN Controllern zu implementieren ist: (schon in der Standardimplementierung enthalten!)
 0xFF	0 1111 1111  -  Adresse ändern
 	die neue Adresse wird insgesamt 6 mal in den folgenden Datenbytes gesendet:
 	3 mal normal und 3 mal invertiert. Adresse wird im EEPROM gespeichert.

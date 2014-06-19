@@ -126,9 +126,6 @@ rx_data: data
 rx_len: data length
 answer_status: set it to one of the status constants (BUS_OK, BUS_ERR_...) if you processed a command. If the command was unknown (or not implemented), set it to BUS_ERR_CMD. If the status is set to BUS_ERR_CMD, some commands (BUS_CMD_SET_ADDR and some others) are processed by default implementations.
 
-the following command has to be included in your implementation at minimum:
-0xFF - BUS_CMD_SET_ADDR - Changes node adress - the node is after one successful change-adress-command only to the new adress and safes it to the EEPROM
-
 for more see the german file "Protokolldefinitionen.txt"
 
 
