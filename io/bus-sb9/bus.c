@@ -1,6 +1,6 @@
 /*
  *    Filename: bus.c
- *     Version: 0.2 - last change: updated docs, added interrupt, new license
+ *     Version: 0.2.1 - last change: added support for mega644p - first UART-module
  * Description: 9bit serial Bus ("SB9") Library for ATMEL AVR
  *     License: Public Domain
  *
@@ -74,46 +74,46 @@ uint8_t bus_wait_before=255;
 // TODO: add full example for classic mode
 
 /**
-Bus modes:
-BUS_MODE_CLASSIC: saves some RAM, but cannot receive new packets while trying to send (this is by design and cannot be further improved).
-The main program looks like this:
-\code
-int main(void) {
-	uint8_t sender, command, len, repeated;
-	uint8_t data[20], answer_data[20];
-	uint8_t answer_len;
-	uint8_t status;
+ Bus modes:                         *
+ BUS_MODE_CLASSIC: saves some RAM, but cannot receive new packets while trying to send (this is by design and cannot be further improved).
+ The main program looks like this:
+ \code
+ int main(void) {
+ uint8_t sender, command, len, repeated;
+ uint8_t data[20], answer_data[20];
+ uint8_t answer_len;
+ uint8_t status;
+ 
+ // own init stuff
+ bus_init();
+ // other own init stuff
+ while(1) {
 
-	// own init stuff
-	bus_init();
-	// other own init stuff
-	while(1) {
-
-		if (bus_rx_packet(&sender, &command, &len, 20, data, &repeated)!=0) {
-			status=BUS_ERR_INTERNAL;
-			answer_len=0;
-			// process command and data, do something
-			if (command==BUS_CMD_OUTPUT_SET) {
-				if (data[0]==0) {
-					if (len==2) {
-						status=BUS_OK;
-						PORTC=data[1];
-						answer_len=1;
-						answer_data[0]=PORTC;
-					} else {
-						status=BUS_ERR_LEN;
-					}
-				} else {
-					status=BUS_ERR_PARAM;
-				}
-			} else {
-				status=BUS_ERR_CMD;
-			}
-			bus_rx_send_answer(status, answer_data, answer_len);
-		}
-		//... do something else (maximum 3ms) or simply _delay_ms(3);
-		//... you can send a packet by calling bus_tx_packet(), it returns after sending has finished
-	}
+	 if (bus_rx_packet(&sender, &command, &len, 20, data, &repeated)!=0) {
+		 status=BUS_ERR_INTERNAL;
+		 answer_len=0;
+		 // process command and data, do something
+		 if (command==BUS_CMD_OUTPUT_SET) {
+			 if (data[0]==0) {
+				 if (len==2) {
+					 status=BUS_OK;
+					 PORTC=data[1];
+					 answer_len=1;
+					 answer_data[0]=PORTC;
+				 } else {
+					 status=BUS_ERR_LEN;
+				 }
+			 } else {
+				 status=BUS_ERR_PARAM;
+			 }
+		 } else {
+			 status=BUS_ERR_CMD;
+		 }
+		 bus_rx_send_answer(status, answer_data, answer_len);
+	 }
+	 //... do something else (maximum 3ms) or simply _delay_ms(3);
+	 //... you can send a packet by calling bus_tx_packet(), it returns after sending has finished
+ }
 }
 \endcode
 
@@ -126,23 +126,28 @@ rx_data: data
 rx_len: data length
 answer_status: set it to one of the status constants (BUS_OK, BUS_ERR_...) if you processed a command. If the command was unknown (or not implemented), set it to BUS_ERR_CMD. If the status is set to BUS_ERR_CMD, some commands (BUS_CMD_SET_ADDR and some others) are processed by default implementations.
 
+the following command has to be included in your implementation at minimum:
+0xFF - BUS_CMD_SET_ADDR - Changes node adress - the node is after one successful change-adress-command only to the new adress and safes it to the EEPROM
+
+for more see the german file "Protokolldefinitionen.txt"
+
+
 The program looks like this:
 \code
 static inline void bus_rx_event(uint8_t rx_sender, uint8_t rx_command, uint8_t rx_data[], uint8_t rx_len, uint8_t *answer_status, uint8_t *answer_data, uint8_t *answer_len, uint8_t answer_max_len) {
-	if (command==BUS_CMD_OUTPUT_TOGGLE) {
-		if (data[0]==0) {
-			if (len==2) {
-				status=BUS_OK;
-				PORTC^=data[1];
-				*answer_len=1;
-				answer_data[0]=PORTC;
-			} else {
-				status=BUS_ERR_LEN;
-			}
+if (command==BUS_CMD_OUTPUT_TOGGLE) {
+	if (data[0]==0) {
+		if (len==2) {
+			status=BUS_OK;
+			PORTC^=data[1];
+			*answer_len=1;
+			answer_data[0]=PORTC;
+		} else {
+			status=BUS_ERR_LEN;
 		} else {
 			status=BUS_ERR_PARAM;
 		}
-	 } else {
+	} else {
 		status=BUS_ERR_CMD;
 	}
 }
@@ -156,8 +161,6 @@ main() {
 }
 
 \endcode
-
-
 */
 
 #if defined BUS_MODE_EVENT
@@ -253,7 +256,7 @@ uint8_t bus_tx(uint16_t data) {
 	// return 1 = OK
 	// return 0 = Error
 	bus_uart_tx_byte_9(data);
-
+	
 	// Kollisionserkennung: RX==TX???
 	if (!bus_uart_rx_ready_timeout(1)) {
 		// Paket ist auf der Strecke verloren gegangen
@@ -264,7 +267,7 @@ uint8_t bus_tx(uint16_t data) {
 	} else {
 		return 0;
 	}
-
+	
 }
 
 // MIDDLE-LEVEL RX/TX FUNCTIONS
@@ -282,6 +285,19 @@ uint8_t bus_tx(uint16_t data) {
 #define UART_RX_PIN PIND
 #define UART_RX_BIT PD0
 #define PE UPE
+#elif defined(__AVR_ATmega644P__) // zwei UART-Module!! -> hier UART0 verwenden
+#define UART_MPCM_REGISTER UCSR0A
+#define UCSRB UCSR0B
+#define UCSRC UCSR0C
+#define UART_MPCM_BIT MPCM0
+#define UART_RX_PIN PIND
+#define UART_RX_BIT PD0
+#define UDR UDR0
+#define FE FE0
+#define DOR DOR0
+#define PE UPE0
+#define RXB8 RXB80
+#define TXB8 TXB80
 #else
 #error unsupported processor type, please define UART_MPCM_REGISTER (e.g. UCSRA), UART_MPCM_BIT (e.g. MPCM), UART_RX_PIN (e.g. PIND), UART_RX_BIT (e.g. PD0)
 #endif
@@ -325,7 +341,7 @@ void bus_set_address(uint8_t addr) {
 	bus_address=addr;
 	bus_wait_before=bus_address;
 	eeprom_write_byte(&bus_rom_address,addr);
-// 	eeprom_busy_wait();
+	// 	eeprom_busy_wait();
 	// wait needs too long, blocks bus_poll
 }
 
@@ -343,38 +359,55 @@ void bus_enable_rx_interrupt(uint8_t enable);
 // BUS INIT
 
 void bus_init(void) {
-	// async. UART: 9bit, even parity, 2 stopbits
-#if defined(__AVR_ATmega8__)
+	// async. UART: 9bit, even parity, 2 stopbits, 19,2 kBaud
+	#if defined(__AVR_ATmega8__)
 	UCSRA=0;
 	UCSRB=(1<<RXEN)|(1<<TXEN)|(1<<UCSZ2);
 	UCSRC=(1<<URSEL)|(1<<UPM1)|(1<<USBS)|(1<<UCSZ1)|(1<<UCSZ0);
-#if (F_CPU == 16000000)
+	#if (F_CPU == 16000000)
 	UBRRL=51;
 	UBRRH=0;
-#else /* F_CPU */
-#error unsupported processor speed or F_CPU not defined, use 16000000
-#endif /* F_CPU */
-#elif defined(__AVR_ATtiny2313__)
+	#else /* F_CPU */
+	#error unsupported processor speed or F_CPU not defined, use 16000000
+	#endif /* F_CPU */
+	#elif defined(__AVR_ATmega644P__)
+	UCSR0A=0;
+	UCSR0B=(1<<RXEN0)|(1<<TXEN0)|(1<<UCSZ02);
+	UCSR0C=(1<<URSEL0)|(1<<UPM01)|(1<<USBS0)|(1<<UCSZ01)|(1<<UCSZ00);
+	#if (F_CPU == 16000000)
+	UBRRL0=51;
+	UBRRH0=0;
+	#elif (F_CPU == 18432000) // Baudratenquarz!
+	UBRRL0=59;
+	UBRRH0=0;
+	#elif (F_CPU == 20000000)
+	UBRRL0=64;
+	UBRRH0=0;
+	#else /* F_CPU */
+	#error unsupported processor speed or F_CPU not defined, use 16000000
+	#endif /* F_CPU */
+	#elif defined(__AVR_ATtiny2313__)
 	UCSRA=0;
 	UCSRB=(1<<RXEN)|(1<<TXEN)|(1<<UCSZ2);
 	UCSRC=(1<<UPM1)|(1<<USBS)|(1<<UCSZ1)|(1<<UCSZ0);
-#if (F_CPU == 16000000)
+	#if (F_CPU == 16000000)
 	UBRRL=51;
 	UBRRH=0;
-#elif (F_CPU == 4000000)
+	#elif (F_CPU == 4000000)
+	#warning 4MHz is relatively slow for the use of SB9! consider using a higher SystemClock-frequency
 	UBRRL = 12;
 	UBRRH = 0;
-#else /* F_CPU */
-#error unsupported processor speed or F_CPU not defined, use 16000000
-#endif /* F_CPU */
-#else /* processor type */
-#error unsupported processor type, please add to bus_init()
-#endif
+	#else /* F_CPU */
+	#error unsupported processor speed or F_CPU not defined, use 16000000
+	#endif /* F_CPU */
+	#else /* processor type */
+	#error unsupported processor type, please add to bus_init()
+	#endif
 	bus_read_eeprom_address();
 	bus_wait_before=bus_address;
-#ifdef BUS_MODE_EVENT
+	#ifdef BUS_MODE_EVENT
 	bus_enable_rx_interrupt(1);
-#endif
+	#endif
 }
 
 inline void bus_set_mpcm(uint8_t on) {
@@ -394,7 +427,7 @@ inline uint8_t bus_tx_ready(void) {
 #endif
 // HIGH-LEVEL RX/TX FUNCTIONS
 uint8_t bus_tx_packet(uint8_t destination, uint8_t command, uint8_t len, uint8_t data[], uint8_t rx_data[], uint8_t rx_max_len, uint8_t *rx_len, uint8_t *rx_status) {
-#ifdef BUS_MODE_EVENT
+	#ifdef BUS_MODE_EVENT
 	uint8_t rx_isr_enabled;
 	// Wrapper um bus_tx_packet_ gegen mehrmaliges gleichzeitiges Ausführen
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
@@ -408,15 +441,15 @@ uint8_t bus_tx_packet(uint8_t destination, uint8_t command, uint8_t len, uint8_t
 		rx_isr_enabled=bus_rx_interrupt_status();
 		bus_enable_rx_interrupt(0);
 	}
-#endif
+	#endif
 	uint8_t ret=bus_tx_packet_(destination, command, len, data, rx_data, rx_max_len, rx_len, rx_status);
-#ifdef BUS_MODE_EVENT
+	#ifdef BUS_MODE_EVENT
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		// Restore RX-ISR-Status
 		bus_enable_rx_interrupt(rx_isr_enabled);
 		bus_tx_active=0;
 	}
-#endif
+	#endif
 	return ret;
 }
 
@@ -430,7 +463,7 @@ static inline uint8_t bus_tx_packet_(uint8_t destination, uint8_t command, uint8
 	uint8_t wait_for_bus_empty=15;
 	uint8_t retry;
 	bus_set_mpcm(0);
-
+	
 	// Sequenznummer für 3.1
 	// für jedes Paket um 1 erhöhen
 	// bei Wiederholungen nicht erhöhen
@@ -440,22 +473,22 @@ static inline uint8_t bus_tx_packet_(uint8_t destination, uint8_t command, uint8
 	for (retry=0;retry<3;retry++) {
 		// 1m.1. "zufällige" Zeit berechnen
 		bus_wait_before=(bus_wait_before+157)&0xFF;
-
+		
 		uint16_t i;
 		int16_t rx=0;
 		// 1m.2. warten bis Bus 15ms+x bzw. 7ms+x ms lang auf idle
 		for (i=0;i<(wait_for_bus_empty*100)+bus_wait_before;i++) {
 			if ((!(UART_RX_PIN & (1<<UART_RX_BIT))) || bus_uart_rx_ready()) {
 				// Bus auf LOW, also geht die Wartezeit von vorne los
-#ifdef BUS_MODE_EVENT
+				#ifdef BUS_MODE_EVENT
 				// Datenpaket verarbeiten
 				// es ist möglich, dass hier ein Paket empfangen wird. Dann wird die Verarbeitungsfunktion aufgerufen.
 				bus_poll();
 				bus_set_mpcm(0); // MPCM wieder zurücksetzen
-#else
+				#else
 				// einfacher Modus: Empfang während des Sendens nicht möglich, verwerfen und auf Ende der Übertragung warten
 				bus_uart_rx_flush();
-#endif
+				#endif
 				i=0;
 				bus_wait_before=(bus_wait_before+157)&0xFF;
 			}
@@ -584,9 +617,9 @@ uint8_t bus_rx_packet(uint8_t *sender, uint8_t *command, uint8_t *len, uint8_t m
 		return 0;
 	}
 	bus_set_mpcm(0); // TODO
-
+	
 	// TODO überarbeitetes Sequenzzeug mit toggle() stresstesten: dauernd toggle und Antwort auf toggeln überprüfen, dabei zwischendurch einzelne Störimpulse einspeisen
-
+	
 	static uint8_t clear_cache_counter=0;
 	static uint16_t seq=0xFFFF; // start with invalid seq.
 	static uint8_t last_sender=0;
@@ -596,8 +629,8 @@ uint8_t bus_rx_packet(uint8_t *sender, uint8_t *command, uint8_t *len, uint8_t m
 	} else {
 		clear_cache_counter++;
 	}
-
-
+	
+	
 	uint16_t rx;
 	rx=bus_rx();
 	if (rx&BUS_RX_ERR) {
@@ -605,7 +638,7 @@ uint8_t bus_rx_packet(uint8_t *sender, uint8_t *command, uint8_t *len, uint8_t m
 		bus_store_error(0x20,rx);
 		return 0;
 	}
-
+	
 	// 2.1. Slave-Adresse
 	if (rx!=((1<<8)|bus_address)) {
 		// NO error, the packet is just not for us
@@ -648,12 +681,12 @@ uint8_t bus_rx_packet(uint8_t *sender, uint8_t *command, uint8_t *len, uint8_t m
 	// The new sequence number is only stored into the static variable seq after the function has completed receiving, which means the packet will be processed.
 	uint16_t new_seq=rx&0xff;
 	uint8_t new_last_sender=*sender;
-
+	
 	*repeated=0;
 	if ((new_seq==old_seq) && (last_sender==*sender)) {
 		*repeated=1;
 	}
-
+	
 	// 3.2. Master: Befehl
 	rx=bus_rx();
 	if (rx&((1<<8)|BUS_RX_ERR)) {
@@ -681,7 +714,7 @@ uint8_t bus_rx_packet(uint8_t *sender, uint8_t *command, uint8_t *len, uint8_t m
 	// 3.4 Daten
 	uint16_t i;
 	for (i=0;i<*len;i++) {
-
+		
 		rx=bus_rx();
 		if (rx&((1<<8)|BUS_RX_ERR)) {
 			bus_store_error(0x34,rx);
@@ -703,11 +736,11 @@ uint8_t bus_rx_packet(uint8_t *sender, uint8_t *command, uint8_t *len, uint8_t m
 		bus_set_mpcm(1);
 		return 0;
 	}
-
+	
 	// store the new sequence-number so re-processing the same packet will be detected
 	seq=new_seq;
 	last_sender=new_last_sender;
-
+	
 	// do not set mpcm to 1 here, bus_rx_send_answer is not yet called
 	return 1;
 	// answer is computed, then bus_rx_send_answer is called by the program
@@ -743,8 +776,8 @@ static inline uint8_t bus_rx_send_answer(uint8_t status, uint8_t answer_data[], 
 	}
 	bus_set_mpcm(1);
 	return 1;
-
-
+	
+	
 }
 
 #if defined BUS_MODE_EVENT
@@ -754,10 +787,17 @@ static inline uint8_t bus_rx_send_answer(uint8_t status, uint8_t answer_data[], 
 #define UART_RX_COMPLETE_VECTOR USART_RXC_vect
 #define UART_RX_ISR_REGISTER UCSRB
 #define UART_RX_ISR_FLAGS (1<<RXCIE)
+
+#elif defined(__AVR_ATmega644P__)
+#define UART_RX_COMPLETE_VECTOR USART0_RX_vect
+#define UART_RX_ISR_REGISTER UCSR0B
+#define UART_RX_ISR_FLAGS (1<<RXCIE0)
+
 #elif defined(__AVR_ATtiny2313__)
 #define UART_RX_COMPLETE_VECTOR USART_RX_vect
 #define UART_RX_ISR_REGISTER UCSRB
 #define UART_RX_ISR_FLAGS (1<<RXCIE)
+
 #else
 #error unsupported processor type, please add definitions for UART_RX_ISR_REGISTER (e.g. UCSRB), UART_RX_ISR_FLAGS (e.g. 1<<RXCIE), UART_RX_COMPLETE_VECTOR (e.g. USART_RXC_vect)
 #endif
@@ -774,35 +814,35 @@ void bus_poll(void) {
 		rx_isr_enabled=bus_rx_interrupt_status();
 		bus_enable_rx_interrupt(0);
 	}
-
+	
 	// RX-Zwischenspeicher
 	uint8_t bus_rx_sender;
 	uint8_t bus_rx_command;
 	uint8_t bus_rx_len;
 	uint8_t bus_rx_data[BUS_RX_BUF_LENGTH];
 	uint8_t bus_rx_repeated;
-
+	
 	// RX-Antwort-Zwischenspeicher: static, damit bei repeated die alte Antwort gleich wieder gesendet werden kann
 	static uint8_t bus_answer_status=BUS_ERR_INTERNAL;
 	static uint8_t bus_answer_data[BUS_ANSWER_BUF_LENGTH];
 	static uint8_t bus_answer_len=0;
-
+	
 	if (bus_rx_packet(&bus_rx_sender, &bus_rx_command, &bus_rx_len, BUS_RX_BUF_LENGTH, bus_rx_data, &bus_rx_repeated)) {
-// 		uint8_t reset_pending=0;
+		// 		uint8_t reset_pending=0;
 		if (bus_rx_repeated) {
 			// leave answer data, status and length unchanged
 			// TODO test this
 		} else {
 			bus_answer_status=BUS_ERR_CMD;
 			bus_answer_len=0;
-
+			
 			// call bus_rx_event to handle the command - if it doesnt know the command, it sets the status to BUS_ERR_CMD
 			bus_rx_event(bus_rx_sender, bus_rx_command, bus_rx_data, bus_rx_len, &bus_answer_status, bus_answer_data, &bus_answer_len, BUS_ANSWER_BUF_LENGTH);
-
+			
 			if (bus_answer_status!=BUS_ERR_CMD) {
 				// bus_rx_event handled the command
 				// the response is sent
-
+				
 				// some default commands are processed in the next else-if clauses if they were not answered by bus_rx_event()
 			} else if (bus_rx_command==BUS_CMD_SET_ADDR) { // Set new address
 				if (bus_rx_len==6) {
@@ -816,7 +856,7 @@ void bus_poll(void) {
 							// another EEPROM operation is pending, bus_set_address would take too long
 							bus_answer_status=BUS_ERR_INTERNAL;
 						}
-
+						
 					} else {
 						bus_answer_status=BUS_ERR_PARAM;
 					}
@@ -830,20 +870,20 @@ void bus_poll(void) {
 					for (uint8_t i=0; i<bus_rx_len; i++) {
 						bus_answer_data[i]=bus_rx_data[i];
 					}
-// 					memcpy(bus_answer_data,bus_rx_data,bus_rx_len);
+					// 					memcpy(bus_answer_data,bus_rx_data,bus_rx_len);
 				} else {
 					// packet is too long for answer buffer
 					// packets too long for the rx buffer will be dismissed by bus_rx_packet() (TODO fix this), they will simply timeout
 					bus_answer_status=BUS_ERR_LEN;
 				}
 				// TODO Reset not fully implemented
-	// 		} else if (command==BUS_CMD_RESET) {
-	// 			if (len==0) {
-	// 				bus_answer_status=BUS_OK;
-	// 				reset_pending=1;
-	// 			} else {
-	// 				bus_answer_status=BUS_ERR_LEN;
-	// 			}
+				// 		} else if (command==BUS_CMD_RESET) {
+				// 			if (len==0) {
+				// 				bus_answer_status=BUS_OK;
+				// 				reset_pending=1;
+				// 			} else {
+				// 				bus_answer_status=BUS_ERR_LEN;
+				// 			}
 			} else if (bus_rx_command==BUS_CMD_IDENT) {
 				if (bus_rx_len==0) {
 					bus_answer_status=BUS_OK;
@@ -857,7 +897,7 @@ void bus_poll(void) {
 							bus_answer_len++;
 						}
 					}
-
+					
 				} else {
 					bus_answer_status=BUS_ERR_LEN;
 				}
@@ -866,14 +906,14 @@ void bus_poll(void) {
 			}
 		}
 		bus_rx_send_answer(bus_answer_status, bus_answer_data, bus_answer_len);
-
-// 		// do reset if called to do so
-// 		if (reset_pending) {
-// 			wdt_enable(WDTO_15MS);
-// 			while(1) {}
-// 		}
+		
+		// 		// do reset if called to do so
+		// 		if (reset_pending) {
+		// 			wdt_enable(WDTO_15MS);
+		// 			while(1) {}
+		// 		}
 	}
-
+	
 	// Sperre wieder freigeben
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		bus_poll_active=0;
@@ -898,19 +938,19 @@ inline uint8_t bus_rx_interrupt_status(void) {
 inline void bus_rx_interrupt(void) {
 	if (bus_poll_active || bus_tx_active) {
 		// ERROR, this should not happen
-// #warning debug
-// 		lcd_clear();
-// 		lcd_putstr(PSTR("BusErrISR-Loop"));
-// 		while(1) {}
+		// #warning debug
+		// 		lcd_clear();
+		// 		lcd_putstr(PSTR("BusErrISR-Loop"));
+		// 		while(1) {}
 		return;
 	}
 	bus_poll();
 }
 
 ISR(UART_RX_COMPLETE_VECTOR,ISR_BLOCK) {
-// 	#warning debug scheiß!
-// 	PORTB |= (1<<PB7);
+	// 	#warning debug scheiß!
+	// 	PORTB |= (1<<PB7);
 	bus_rx_interrupt();
-// 	PORTB &= ~(1<<PB7);
+	// 	PORTB &= ~(1<<PB7);
 }
 #endif /* defined BUS_MODE_EVENT */
