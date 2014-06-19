@@ -1,6 +1,6 @@
 /*
  *    Filename: lib/io/serial/uart.h
- *     Version: 0.0.4
+ *     Version: 0.0.5
  * Description: UART-lib für Atmel-8bit-Mikrocontroller.
  *     License: GPLv2 or later
  *     Depends: io.h
@@ -27,8 +27,8 @@
 #ifndef _HAVE_LIB_IO_SERIAL_UART_H
 #define _HAVE_LIB_IO_SERIAL_UART_H
 
-#define BAUD 57600
-#include <util/setbaud.h>
+// #define BAUD 57600
+// #include <util/setbaud.h>
 
 // Abwärtskompatibilität...
 #define uart_tx uartTx
@@ -42,12 +42,11 @@
 #define uart_tx_newline uartTxNewline
 
 
-#ifdef tiny2313
+#if defined (__AVR_ATtiny2313__)
 #define URSEL UMSEL
 #define PE UPE
-#endif
 
-#if defined mega48 || defined mega88 || defined mega168 || defined mega328
+#elif defined (__AVR_ATmega48__) || defined (__AVR_ATmega88__) || defined (__AVR_ATmega168__) || defined (__AVR_ATmega328__)
 #define UCSRA UCSR0A
 #define UCSRB UCSR0B
 #define UCSRC UCSR0C
@@ -61,6 +60,40 @@
 #define UBRRH UBRR0H
 #define UBRRL UBRR0L
 
+#elif defined(__AVR_ATmega644P__)
+
+// #if defined UART_NUMBER == 0
+// #define UCSRA UCSR0A
+// #define UCSRB UCSR0B
+// #define UCSRC UCSR0C
+// #define RXEN RXEN0
+// #define TXEN TXEN0
+// #define UCSZ0 UCSZ00
+// #define RXC RXC0
+// #define TXC TXC0
+// #define UDRE UDRE0
+// #define UDR UDR0
+// #define UBRRH UBRR0H
+// #define UBRRL UBRR0L
+
+#elif defined UART_NUMBER == 1
+#define UCSRA UCSR1A
+#define UCSRB UCSR1B
+#define UCSRC UCSR1C
+#define RXEN RXEN1
+#define TXEN TXEN1
+#define UCSZ0 UCSZ10
+#define UCSZ1 UCSZ11
+#define RXC RXC1
+#define TXC TXC1
+#define UDRE UDRE1
+#define UDR UDR1
+#define UBRRH UBRR1H
+#define UBRRL UBRR1L
+
+#else
+#error Uart-Einheit nicht (korrekt) definiert! Einheitennummer 0 oder 1 angeben!
+#endif
 #endif
 
 #include "../io.h"
@@ -72,14 +105,18 @@ void uartInit(void) {
 	UBRRL = UBRRL_VALUE;
 	
 	// RX/TX aktivieren
-	UCSRB = (1 << RXEN) | (1 << TXEN);
+	UCSRB = (1<<RXEN) | (1<<TXEN);
 	
 	// 8 Bit Daten; 1 Stopbit; Asynchronous Operation, no Parity
+	#if defined (__AVR_ATmega644P__)
+	UCSRC = (1<<URSEL) | (1<<UCSZ1) | (1<<UCSZ0); 
+	#endif
+	
 	UCSRC = (1<<URSEL) | (1<<UCSZ1) | (1<<UCSZ0); 
 	
 	// 2 Stoppbits wenn N_STOPPBITS = 2 definiert ist.
 	#if N_STOPPBITS == 2
-	UCSRC |= (1 << USBS);
+	UCSRC |= (1<<USBS);
 	#endif
 }
 
