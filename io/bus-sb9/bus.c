@@ -209,6 +209,40 @@ uint8_t bus_checksum(uint8_t x, uint8_t prev) {
 }
 
 
+// processor-specific-definitions:
+
+#if defined(UART_MPCM_REGISTER) && defined(UART_MPCM_BIT) && defined(UART_RX_PIN) && defined(UART_RX_BIT)
+// registers already defined for custom setting - if you want a custom setting, define ALL FOUR of them!
+#elif defined(__AVR_ATmega8__)
+#define UART_MPCM_REGISTER UCSRA
+#define UART_MPCM_BIT MPCM
+#define UART_RX_PIN PIND
+#define UART_RX_BIT PD0
+#elif defined(__AVR_ATtiny2313__)
+#define UART_MPCM_REGISTER UCSRA
+#define UART_MPCM_BIT MPCM
+#define UART_RX_PIN PIND
+#define UART_RX_BIT PD0
+#define PE UPE
+#elif defined(__AVR_ATmega644P__) // zwei UART-Module!! -> hier UART0 verwenden
+#define UART_MPCM_REGISTER UCSR0A
+#define UCSRA UCSR0A
+#define UCSRB UCSR0B
+#define UCSRC UCSR0C
+#define UART_MPCM_BIT MPCM0
+#define UART_RX_PIN PIND
+#define UART_RX_BIT PD0
+#define UDR UDR0
+#define FE FE0
+#define DOR DOR0
+#define PE UPE0
+#define RXB8 RXB80
+#define TXB8 TXB80
+#define RXC RXC0
+#define UDRE UDRE0
+#else
+#error unsupported processor type, please define UART_MPCM_REGISTER (e.g. UCSRA), UART_MPCM_BIT (e.g. MPCM), UART_RX_PIN (e.g. PIND), UART_RX_BIT (e.g. PD0)
+#endif
 
 
 // LOW-LEVEL RX/TX FUNCTIONS
@@ -232,7 +266,7 @@ uint8_t bus_uart_rx_ready_timeout(uint8_t time) {
 
 void bus_uart_rx_flush(void) {
 	while (bus_uart_rx_ready()) {
-		uint8_t dummy=UDR;
+		volatile uint8_t dummy=UDR;
 		dummy++; // do something so that dummy variable is not unused
 	}
 }
@@ -268,36 +302,6 @@ uint8_t bus_tx(uint16_t data) {
 }
 
 // MIDDLE-LEVEL RX/TX FUNCTIONS
-
-#if defined(UART_MPCM_REGISTER) && defined(UART_MPCM_BIT) && defined(UART_RX_PIN) && defined(UART_RX_BIT)
-// registers already defined for custom setting - if you want a custom setting, define ALL FOUR of them!
-#elif defined(__AVR_ATmega8__)
-#define UART_MPCM_REGISTER UCSRA
-#define UART_MPCM_BIT MPCM
-#define UART_RX_PIN PIND
-#define UART_RX_BIT PD0
-#elif defined(__AVR_ATtiny2313__)
-#define UART_MPCM_REGISTER UCSRA
-#define UART_MPCM_BIT MPCM
-#define UART_RX_PIN PIND
-#define UART_RX_BIT PD0
-#define PE UPE
-#elif defined(__AVR_ATmega644P__) // zwei UART-Module!! -> hier UART0 verwenden
-#define UART_MPCM_REGISTER UCSR0A
-#define UCSRB UCSR0B
-#define UCSRC UCSR0C
-#define UART_MPCM_BIT MPCM0
-#define UART_RX_PIN PIND
-#define UART_RX_BIT PD0
-#define UDR UDR0
-#define FE FE0
-#define DOR DOR0
-#define PE UPE0
-#define RXB8 RXB80
-#define TXB8 TXB80
-#else
-#error unsupported processor type, please define UART_MPCM_REGISTER (e.g. UCSRA), UART_MPCM_BIT (e.g. MPCM), UART_RX_PIN (e.g. PIND), UART_RX_BIT (e.g. PD0)
-#endif
 
 #define UART_RX_ERR 0xFFFF
 uint16_t bus_uart_rx9(void) {
@@ -370,16 +374,16 @@ void bus_init(void) {
 	#elif defined(__AVR_ATmega644P__)
 	UCSR0A=0;
 	UCSR0B=(1<<RXEN0)|(1<<TXEN0)|(1<<UCSZ02);
-	UCSR0C=(1<<URSEL0)|(1<<UPM01)|(1<<USBS0)|(1<<UCSZ01)|(1<<UCSZ00);
+	UCSR0C=(1<<UPM01)|(1<<USBS0)|(1<<UCSZ01)|(1<<UCSZ00);
 	#if (F_CPU == 16000000)
-	UBRRL0=51;
-	UBRRH0=0;
+	UBRR0L=51;
+	UBRR0H=0;
 	#elif (F_CPU == 18432000) // Baudratenquarz!
-	UBRRL0=59;
-	UBRRH0=0;
+	UBRR0L=59;
+	UBRR0H=0;
 	#elif (F_CPU == 20000000)
-	UBRRL0=64;
-	UBRRH0=0;
+	UBRR0L=64;
+	UBRR0H=0;
 	#else /* F_CPU */
 	#error unsupported processor speed or F_CPU not defined, use 16000000
 	#endif /* F_CPU */
