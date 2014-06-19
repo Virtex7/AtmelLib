@@ -79,7 +79,6 @@ Für Text-LCDs:
 0xE1	0 1110 0001  -  Sende LCD-Kommando/s (Rohdaten werden im Datenpaket mitgesendet, bis zu 100 Kommandos sind möglich, bei der Ausführung vergeht etwas Zeit...)
 0xE2	0 1110 0010  -  Sende LCD-Daten (auch Rohdaten, werden direkt verarbeitet)
 0xE3	0 1110 0011  -  Sende String an die LCD-Anzeige-Funktion (max lib wird als Standart vorausgesetzt)
-
 0xE4	0 1110 0100  -  Sende String an die LCD-Putchar-Funktion
 
 0xE5-EF reserviert
