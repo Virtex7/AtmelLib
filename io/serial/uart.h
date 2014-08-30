@@ -174,6 +174,17 @@ void uartTxDec2(uint16_t zahl) {
 	uartTx(0x30+(zahl%100/10));		// 10er  Stelle
 	uartTx(0x30+(zahl%10));			// 1er   Stelle
 }
+void uartTxHexNibble(uint8_t nibble) {
+	if (nibble < 10) {
+		uartTx(0x30+nibble);
+	} else {
+		uartTx('A'-10+nibble);
+	}
+}
+void uartTxHex8(uint8_t zahl) {
+	uartTxHexNibble(zahl>>4);		// höhere  Stelle
+	uartTxHexNibble(zahl&0xF);			// niedrige   Stelle
+}
 
 void uartTxBin(uint32_t value) { // maximal 32 Bit auf einmal
 for(uint8_t i=0; i<32; i++) {

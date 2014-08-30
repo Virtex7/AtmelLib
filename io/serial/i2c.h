@@ -27,6 +27,11 @@
 #ifndef _HAVE_LIB_io_serial_i2c_h
 #define _HAVE_LIB_io_serial_i2c_h
 
+// mit I2C_DELAY_FACTOR >1 kann das Timing verlansgamt werden (Integer)
+#ifndef I2C_DELAY_FACTOR
+#define I2C_DELAY_FACTOR 1
+#endif
+
 #include <math.h>
 
 // Erwartete Definitionen:
@@ -48,51 +53,58 @@ void i2c_init(void) {
 
 void i2c_clock(void) { // Erzeugt einen Clock-Puls
 sbi(I2C_PORT,SCL);
-delayus(5);
+delayus(5*I2C_DELAY_FACTOR);
 cbi(I2C_PORT,SCL);
-delayus(5);
+delayus(5*I2C_DELAY_FACTOR);
 }
 
 void i2c_start(void) { // Sende Startbedingung
+// SCL high, kurz warten, SDA falling edge
 sbi(I2C_DDR,SDA);
 I2C_PORT |= (1<<SDA);
 I2C_PORT |= (1<<SCL);
-delayus(10);
+delayus(10*I2C_DELAY_FACTOR);
 cbi(I2C_PORT,SDA);
-delayus(5);
+delayus(5*I2C_DELAY_FACTOR);
+
+// SCL low, jetzt darf SDA auf das erste Datenbit gesetzt werden
 cbi(I2C_PORT,SCL);
-delayus(5);
+delayus(5*I2C_DELAY_FACTOR);
 }
 
 void i2c_stop(void) { // Sende Stoppbedingung
 sbi(I2C_DDR,SDA);
 cbi(I2C_PORT,SDA);
 sbi(I2C_PORT,SCL);
-delayus(5);
+delayus(5*I2C_DELAY_FACTOR);
 sbi(I2C_PORT,SDA);
 }
 
 // uint8_t ERR = 0;
-void i2c_ack(void) { // Frage ACK ab
+void i2c_receive_ack(void) { // Frage ACK ab
 cbi(I2C_DDR,SDA);
 sbi(I2C_PORT,SDA);
-delayus(4);
+delayus(4*I2C_DELAY_FACTOR);
 if(in(I2C_PIN,SDA,1)) {
 	ERR = 0;
 } else {
 	ERR = 1;
+// 	#warning DEBUG
+// 	PORTC &= ~1; 
+// 	uart_tx_strln("I2C ERROR");
+// 	while(1) {}
 }
-delayus(4);
+delayus(4*I2C_DELAY_FACTOR);
 i2c_clock();
-delayus(10);
+delayus(10*I2C_DELAY_FACTOR);
 }
 
 void i2c_nak_tx(void) { // erzeuge NAK
 	sbi(I2C_DDR,SDA);
 	sbi(I2C_PORT,SDA);
-	delayus(5);
+	delayus(5*I2C_DELAY_FACTOR);
 	i2c_clock();
-	delayus(5);
+	delayus(5*I2C_DELAY_FACTOR);
 	cbi(I2C_DDR,SDA);
 }
 
@@ -104,7 +116,7 @@ for(uint8_t i=8; i>0; i--) {
 	} else {
 		cbi(I2C_PORT,SDA);
 	}
-	delayus(2);
+	delayus(2*I2C_DELAY_FACTOR);
 	i2c_clock();
 }
 cbi(I2C_DDR,SDA);
@@ -119,9 +131,9 @@ for(uint8_t i=16; i>0; i--) {
 		cbi(I2C_PORT,SDA);
 	}
 	if (i == 8) {
-		i2c_ack();
+		i2c_receive_ack();
 	}
-	delayus(2);
+	delayus(2*I2C_DELAY_FACTOR);
 	i2c_clock();
 }
 cbi(I2C_DDR,SDA);
@@ -138,7 +150,7 @@ for(uint8_t i=8; i>0; i--) {
 		// eine 0
 		// tut gar nichts, die 0en sind schon da.
 	}
-	delayus(2);
+	delayus(2*I2C_DELAY_FACTOR);
 	i2c_clock();
 }
 return temp;
@@ -156,9 +168,9 @@ for(uint8_t i=16; i>0; i--) {
 		// tut gar nichts, die 0en sind schon da.
 	}
 	if (i == 8) {
-		i2c_ack();
+		i2c_receive_ack();
 	}
-	delayus(2);
+	delayus(2*I2C_DELAY_FACTOR);
 	i2c_clock();
 }
 return temp;
@@ -171,11 +183,11 @@ return temp;
 void i2c_tx(uint8_t data, uint8_t com, uint8_t adr) {
 	i2c_start();
 	i2c_data_tx(adr);
-	i2c_ack();
+	i2c_receive_ack();
 	i2c_data_tx(com);
-	i2c_ack();
+	i2c_receive_ack();
 	i2c_data_tx(data);
-	i2c_ack();
+	i2c_receive_ack();
 	i2c_stop();
 }
 
@@ -183,11 +195,11 @@ uint8_t i2c_rx(uint8_t com, uint8_t adr) {
 	uint8_t temp;
 	i2c_start();
 	i2c_data_tx(adr);
-	i2c_ack();
+	i2c_receive_ack();
 	i2c_data_tx(com);
-	i2c_ack();
+	i2c_receive_ack();
 	temp = i2c_data_rx();
-	i2c_ack();
+	i2c_receive_ack();
 	i2c_stop();
 	return temp;
 }
@@ -196,11 +208,11 @@ uint16_t i2c_rx_16(uint8_t com, uint8_t adr) {
 	uint8_t temp;
 	i2c_start();
 	i2c_data_tx(adr);
-	i2c_ack();
+	i2c_receive_ack();
 	i2c_data_tx(com);
-	i2c_ack();
+	i2c_receive_ack();
 	temp = (i2c_data_rx()<<7);
-	i2c_ack();
+	i2c_receive_ack();
 	temp |= i2c_data_rx();
 	i2c_stop();
 	return temp;
@@ -209,14 +221,14 @@ uint16_t i2c_rx_16(uint8_t com, uint8_t adr) {
 uint8_t i2c_rx_DS1307(uint8_t com) {
 	uint8_t temp;
 	i2c_start();
-	i2c_data_tx(0b11010000); // Sende Adresse mit Scheibe-Bit
-	i2c_ack();
+	i2c_data_tx(0b11010000); // Sende Adresse mit Schreibe-Bit
+	i2c_receive_ack();
 	i2c_data_tx(com); // RAM-Pointer
-	i2c_ack();
+	i2c_receive_ack();
 
 	i2c_start(); // "repeated start"
 	i2c_data_tx(0b11010001); // Sende Adresse mit Lese-Bit
-	i2c_ack();
+	i2c_receive_ack();
 	temp = i2c_data_rx(); // lese Daten aus
 	i2c_nak_tx();
 	i2c_stop();
