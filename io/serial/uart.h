@@ -106,8 +106,12 @@ void uartInit(void) {
 	UCSRB = (1<<RXEN) | (1<<TXEN);
 	
 	// 8 Bit Daten; 1 Stopbit; Asynchronous Operation, no Parity
+	#if defined(__AVR_ATmega48__) || defined(__AVR_ATmega88__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328__) || (__AVR_ATmega644P__)
 	#if defined(__AVR_ATmega644P__)
-	UCSRC = (1<<UCSZ1) | (1<<UCSZ0); 
+	UCSRC = (1<<UCSZ1) | (1<<UCSZ0);
+	#else
+	UCSRC = (1<<UCSZ01) | (1<<UCSZ00);
+	#endif
 	#else
 	UCSRC = (1<<URSEL) | (1<<UCSZ1) | (1<<UCSZ0); 
 	#endif
