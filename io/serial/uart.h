@@ -48,7 +48,7 @@
 #define URSEL UMSEL
 #define PE UPE
 
-#elif defined(__AVR_ATmega48__) || defined(__AVR_ATmega88__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328__)
+#elif defined(__AVR_ATmega48__) || defined(__AVR_ATmega88__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328__) || defined(__AVR_ATmega328P__)
 #define UCSRA UCSR0A
 #define UCSRB UCSR0B
 #define UCSRC UCSR0C
@@ -106,7 +106,7 @@ void uartInit(void) {
 	UCSRB = (1<<RXEN) | (1<<TXEN);
 	
 	// 8 Bit Daten; 1 Stopbit; Asynchronous Operation, no Parity
-	#if defined(__AVR_ATmega48__) || defined(__AVR_ATmega88__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328__) || (__AVR_ATmega644P__)
+	#if defined(__AVR_ATmega48__) || defined(__AVR_ATmega88__) || defined(__AVR_ATmega168__) || defined(__AVR_ATmega328__) || defined(__AVR_ATmega644P__)  || defined(__AVR_ATmega328P__)
 	#if defined(__AVR_ATmega644P__)
 	UCSRC = (1<<UCSZ1) | (1<<UCSZ0);
 	#else
