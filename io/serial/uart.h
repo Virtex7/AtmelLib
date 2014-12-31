@@ -28,6 +28,7 @@
 #define _HAVE_LIB_IO_SERIAL_UART_H
 
 #include "../io.h"
+#include <avr/pgmspace.h>
 
 // #define BAUD 57600
 // #include <util/setbaud.h>
@@ -161,8 +162,19 @@ while(text[i]) {
 }
 }
 
-void uartTxStrln(char text[]) {
+void uartTxPstr(PGM_P text) {
+	while (pgm_read_byte(text)) {
+		uartTx ((uint8_t)pgm_read_byte(text++));
+	}
+}
+
+inline void uartTxStrln(char text[]) {
 	uartTxStr(text);
+	uartTxNewline();
+}
+
+inline void uartTxPstrln(PGM_P text) {
+	uartTxPstr(text);
 	uartTxNewline();
 }
 
